@@ -5,6 +5,7 @@
 #include <vector>
 #include "Mandelbrot.h"
 
+
 namespace py = pybind11;
 using namespace std;
 
@@ -15,17 +16,17 @@ Mandelbrot::Mandelbrot(int _precision, unsigned long _max_it, double _bailout)
     bailout = _bailout;
 }
 
-py::object Mandelbrot::search_v1(unsigned int search_depth, long seed){
+py::object Mandelbrot::search_v1(unsigned int search_depth, double bias, long seed){
     py::object ret;
     switch(precision){
         case PREC_FLOAT:
-            ret = py::cast(_search_v1<float>(search_depth,seed));
+            ret = py::cast(_search_v1<float>(search_depth,bias,seed));
         break;
         case PREC_DOUBLE:
-            ret = py::cast(_search_v1<double>(search_depth,seed));
+            ret = py::cast(_search_v1<double>(search_depth,bias,seed));
         break;
         case PREC_LONG_DOUBLE:
-            ret = py::cast(_search_v1<long double>(search_depth,seed));
+            ret = py::cast(_search_v1<long double>(search_depth,bias,seed));
         break;
     }
     return ret;
@@ -96,26 +97,51 @@ py::object Mandelbrot::random_zoom_level(py::object center, tuple<unsigned int, 
 }
 
 
-py::array_t<float> Mandelbrot::render_distance(py::object center, py::object zoom_level, tuple<unsigned int, unsigned int> resolution){
-    switch(precision){
-        case PREC_FLOAT:
-            return _render_distance<float>(
-                center.cast<tuple<float,float>>(),
-                zoom_level.cast<float>(),
-                resolution);
-
+py::array_t<float> Mandelbrot::render(py::object center, py::object zoom_level, tuple<unsigned int, unsigned int> resolution, string type){
+    switch(type){
+        case RENDER_D:
+            switch(precision){
+                case PREC_FLOAT:
+                    return _render_distance<float>(
+                        center.cast<tuple<float,float>>(),
+                        zoom_level.cast<float>(),
+                        resolution);
+                break;
+                case PREC_DOUBLE:
+                    return _render_distance<double>(
+                        center.cast<tuple<double,double>>(),
+                        zoom_level.cast<double>(),
+                        resolution);
+                break;
+                case PREC_LONG_DOUBLE:
+                    return _render_distance<long double>(
+                        center.cast<tuple<long double,long double>>(),
+                        zoom_level.cast<long double>(),
+                        resolution);
+                break;
+            }
         break;
-        case PREC_DOUBLE:
-            return _render_distance<double>(
-                center.cast<tuple<double,double>>(),
-                zoom_level.cast<double>(),
-                resolution);
-        break;
-        case PREC_LONG_DOUBLE:
-            return _render_distance<long double>(
-                center.cast<tuple<long double,long double>>(),
-                zoom_level.cast<long double>(),
-                resolution);
+        case RENDER_TD:
+            switch(precision){
+                case PREC_FLOAT:
+                    return _render_time_distance<float>(
+                        center.cast<tuple<float,float>>(),
+                        zoom_level.cast<float>(),
+                        resolution);
+                break;
+                case PREC_DOUBLE:
+                    return _render_time_distance<double>(
+                        center.cast<tuple<double,double>>(),
+                        zoom_level.cast<double>(),
+                        resolution);
+                break;
+                case PREC_LONG_DOUBLE:
+                    return _render_time_distance<long double>(
+                        center.cast<tuple<long double,long double>>(),
+                        zoom_level.cast<long double>(),
+                        resolution);
+                break;
+            }
         break;
     }
 }
