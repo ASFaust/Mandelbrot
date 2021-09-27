@@ -92,7 +92,7 @@ FT eval_smooth_escape_time(
 
 
 template<typename FT>
-tuple<FT,FT> eval_distance_time(
+tuple<FT,FT> eval_time_distance(
         FT re,
         FT im,
         const FT max_it,
@@ -121,9 +121,9 @@ tuple<FT,FT> eval_distance_time(
         t2 = log(sqlen);
         counter += 1.0 - log(t2 / log(4.0)) / log(2.0);
         t1 = sqrt(4.0 * (dz_re * dz_re + dz_im * dz_im));
-        return make_tuple(FT(sqrt(sqlen) * t2 / t1),counter);
+        return make_tuple(counter,FT(sqrt(sqlen) * t2 / t1));
     }else{
-        return make_tuple(FT(0),FT(max_it));
+        return make_tuple(FT(max_it),FT(0));
     }
 }
 

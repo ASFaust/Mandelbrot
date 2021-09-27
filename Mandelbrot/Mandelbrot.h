@@ -20,14 +20,6 @@ using namespace std;
 #define RENDER_D 0
 #define RENDER_TD 1
 
-/*
-mb = Mandel.Mandelbrot(precision = Mandel.DOUBLE, max_it = 1000, bailout = 2.0)
-p1 = mb.search_v1(search_depth = 200, seed = np.random.randint(0,10000))
-zoom = mb.random_zoom_level(p1, seed = np.random.randint(0,10000))
-img = mb.render_distance(p1, zoom, resolution = (1000,1000), circular = True)
-print(val)
-*/
-
 class Mandelbrot{
     public:
         Mandelbrot(int _precision, unsigned long _max_it, double _bailout);
@@ -35,8 +27,8 @@ class Mandelbrot{
 
         py::object random_radius(py::object center, tuple<unsigned int, unsigned int> resolution, long seed);
         py::object min_radius(py::object center, tuple<unsigned int, unsigned int> resolution);
-        py::array_t<double> render(py::object center, py::object radius, tuple<unsigned int, unsigned int> resolution, int type);
-        py::array_t<double> render_orbit(py::object center, tuple<unsigned int, unsigned int> resolution);
+        py::array_t<float>render(py::object center, py::object radius, tuple<unsigned int, unsigned int> resolution, int type);
+        py::array_t<float>render_orbit(py::object center, tuple<unsigned int, unsigned int> resolution);
 
         py::object distance(py::object position);
 
@@ -55,50 +47,44 @@ class Mandelbrot{
         FT _random_radius(tuple<FT,FT> center,tuple<unsigned int, unsigned int> resolution, long seed = 0);
 
         template<typename FT>
-        py::array_t<float> _render_distance(tuple<FT,FT> center, FT zoom_level, tuple<unsigned int, unsigned int> resolution);
+        py::array_t<float>_render_distance(tuple<FT,FT> center, FT radius, tuple<unsigned int, unsigned int> resolution);
 
         template<typename FT>
-        py::array_t<float> _render_time_distance(tuple<FT,FT> center, FT zoom_level, tuple<unsigned int, unsigned int> resolution);
+        py::array_t<float>_render_time_distance(tuple<FT,FT> center, FT radius, tuple<unsigned int, unsigned int> resolution);
 
         template<typename FT>
-        py::array_t<float> _render_orbit(tuple<FT,FT> center, tuple<unsigned int, unsigned int> resolution);
+        py::array_t<float>_render_orbit(tuple<FT,FT> center, tuple<unsigned int, unsigned int> resolution);
+
+        template<typename FT>
+        void render_dist_thread(int id,py::array_t<float> ret,tuple<FT,FT> center,FT radius,tuple<unsigned int, unsigned int> resolution);
 
         int precision;
+        int n_threads;
         unsigned long max_it;
         double bailout;
 };
 
-
-//buggy?
 template<typename FT>
 FT Mandelbrot::_min_radius(tuple<FT,FT> center,tuple<unsigned int, unsigned int> resolution){
-    //this function is actually quite shit to implement.
-    //it depends on the precision of the FT and also on the center and the resolution
-    //so we first determine a hard baseline from the FT and resolution
-    //then we evaluate the distance to the closest point from the center
-    //which gives us a second, FT-invariant upper bound for the shit
-    //so right now we just use a fixed upper bound for dev purposes.
-    FT max_level = exp(32);
-    FT dist_level = 0.5 / eval_distance<FT>(get<0>(center),get<1>(center),max_it,bailout);
-    //the distance est
-    return min(max_level,dist_level);
+    FT dist = eval_distance<FT>(get<0>(center),get<1>(center),max_it,bailout) * 2.0;
+    return max(FT(exp(FT(-32.0))),dist);
 }
 
 template<typename FT>
-FT Mandelbrot::_random_zoom_level(tuple<FT,FT> center, tuple<unsigned int, unsigned int> resolution, long seed){
-    FT max_zoom = _max_zoom_level(center,resolution);
+FT Mandelbrot::_random_radius(tuple<FT,FT> center, tuple<unsigned int, unsigned int> resolution, long seed){
+    FT min_r = _min_radius(center,resolution);
     if(seed == 0){
         srand(time(NULL));
     }else{
         srand(seed);
     }
     //TODO: This can become a problem for arbitrary precision libraries
-    FT ret_level = exp(frand(log(0.2),log(max_zoom)));
-    return ret_level;
+    //FT ret_level = exp(frand(log(0.2),log(max_zoom)));
+    return exp(frand(log(min_r),log(0.01)));
 }
 
 template<typename FT>
-FT dist(tuple<FT,FT> v1, tuple<FT,FT> v2){
+FT tuple_dist(tuple<FT,FT> v1, tuple<FT,FT> v2){
     FT d1 = get<0>(v1) - get<0>(v2);
     FT d2 = get<1>(v1) - get<1>(v2);
     return sqrt(d1*d1 + d2*d2);
@@ -111,6 +97,9 @@ tuple<FT,FT> Mandelbrot::_search(unsigned int search_depth, FT bias, long seed){
     }else{
         srand(seed);
     }
+    if((bias >= 1.0) or (bias <= 0.0)){
+        throw "bias needs to be in (1,0)";
+    }
     auto [ p1,p2 ] = _init_search<FT>();
     auto [ re1, im1] = p1;
     auto [ re2, im2] = p2;
@@ -118,7 +107,7 @@ tuple<FT,FT> Mandelbrot::_search(unsigned int search_depth, FT bias, long seed){
     FT im3;
     for(unsigned int i = 0; i < search_depth; i++){
         re3 = (re1 * bias + (re2 * (1.0 - bias)));
-        im3 = (im1* bias + (im2 * (1.0 - bias)));
+        im3 = (im1 * bias + (im2 * (1.0 - bias)));
 
         unsigned long c3 = eval_escape_time<FT>(re3,im3,max_it,bailout);
         if(c3 == max_it){
@@ -136,91 +125,7 @@ tuple<FT,FT> Mandelbrot::_search(unsigned int search_depth, FT bias, long seed){
 }
 
 template<typename FT>
-tuple<FT,FT> Mandelbrot::_search_v2(unsigned int search_depth, long seed){
-    if(seed == 0){
-        srand(time(NULL));
-    }else{
-        srand(seed);
-    }
-    //use distance estimator and random noise to get closer to the set
-    FT re1 = 0;
-    FT im1 = 0;
-    unsigned long c1 = max_it;
-    while(c1 == max_it){
-        re1 = frand(-2,2);
-        im1 = frand(-2,2);
-        c1 = eval_escape_time<FT>(re1,im1,max_it,bailout);
-    }
-    FT dist = eval_distance<FT>(re1,im1,max_it,bailout);
-    FT re2,im2;
-    unsigned int best_k = 0;
-    FT best_k_dist = 1000;
-    for(int i = 0; i < search_depth; i++){
-        do{
-            re2 = frand(-dist,dist);
-            im2 = frand(-dist,dist);
-        }while((re2*re2 + im2*im2) >= (dist*dist));
-        re2 += re1;
-        im2 += im1;
-        FT dist2 = eval_distance<FT>(re2,im2,max_it,bailout);
-        auto [k,t2] = _eval_orbit<FT>(eval_orbit<FT>(re1,im1,max_it,bailout));
-        if((dist2 > 0) && (k >= best_k) && (dist2 <= dist)){
-            re1 = re2;
-            im1 = im2;
-            dist = dist2;
-            best_k = k;
-            best_k_dist = t2;
-            cout << log(1.0 / dist) << " " << k << " " << t2 << endl;
-        }
-    }
-    return make_tuple(re1,im1);
-}
-
-template<typename FT>
-tuple<FT,FT> Mandelbrot::_search_v3(unsigned int search_depth, unsigned int outer_depth, long seed){
-    unsigned int best_k = 0;
-    FT best_k_dist = 10000000;
-    FT best_re, best_im;
-    if(seed == 0){
-        srand(time(NULL));
-    }else{
-        srand(seed);
-    }
-    for(int i = 0; i < outer_depth; i++){
-        long rval = rand();
-        auto [re, im] = _search_v1<FT>(search_depth,rval);
-        auto [k,k_dist] = _eval_orbit<FT>(eval_orbit<FT>(re,im,max_it,bailout));
-        if((k >= best_k) && (best_k_dist >= k_dist)){
-            best_k_dist = k_dist;
-            best_k = k;
-            best_re = re;
-            best_im = im;
-            cout << best_k << " " << best_k_dist << endl;
-        }
-    }
-    return make_tuple(best_re,best_im);
-}
-
-template<typename FT>
-tuple<unsigned int,FT> Mandelbrot::_eval_orbit(vector<tuple<FT,FT>> orbit){
-    unsigned int min_dist_it = 0;
-    FT min_dist = 1000;
-    for(int i = 1; i < orbit.size() - 1; i++){
-        for(int j = 0; j < orbit.size() - i; j++){
-            int i1 = j;
-            int i2 = j + i;
-            FT c_dist = dist<FT>(orbit[i1],orbit[i2]);
-            if(c_dist <= min_dist){
-                min_dist = c_dist;
-                min_dist_it = i;
-            }
-        }
-    }
-    return make_tuple(min_dist_it,min_dist);
-}
-
-template<typename FT>
-tuple<tuple<FT,FT>,tuple<FT,FT> > Mandelbrot::_init_search_v1(){
+tuple<tuple<FT,FT>,tuple<FT,FT> > Mandelbrot::_init_search(){
     FT re1 = frand(-2,2);
     FT im1 = frand(-2,2);
     FT re2 = frand(-2,2);
@@ -244,38 +149,51 @@ tuple<tuple<FT,FT>,tuple<FT,FT> > Mandelbrot::_init_search_v1(){
     }
 }
 
-//the return is a 2-dimensional numpy float array of distance in pixels.
-//okok
-//:)
-//first implementation: non-threaded, simple estimation
-
-//we need a threaded implementation that returns iteration depth as well as distance estimate
-
 template<typename FT>
-py::array_t<float> Mandelbrot::_render_distance(tuple<FT,FT> center, FT zoom_level, tuple<unsigned int, unsigned int> resolution){
-
-    FT zoom_radius = 0.5 / zoom_level;
+py::array_t<float> Mandelbrot::_render_distance(
+        tuple<FT,FT> center,
+        FT radius,
+        tuple<unsigned int, unsigned int> resolution){
     const unsigned int res_x = get<0>(resolution);
     const unsigned int res_y = get<1>(resolution);
-    const float res = (float(res_x) + float(res_y) ) / 2.0;
-    const FT px_size = zoom_radius / FT(res) * 2.0;
-
     auto ret_arr = py::array_t<float>({res_y,res_x});
-    auto ret_mu = ret_arr.mutable_unchecked<2>();
-
-    for(unsigned int x = 0; x < res_x; x++){
-        FT re = (FT(x) - FT(res_x) / 2.0) / res;
-        re *= zoom_radius;
-        re += get<0>(center);
-        for(unsigned int y = 0; y < res_y; y++){
-            FT im = (FT(y) - FT(res_y) / 2.0) / res;
-            im *= zoom_radius;
-            im += get<1>(center);
-            FT dist = eval_distance<FT>(re,im,max_it,bailout) / px_size;
-            ret_mu(y,x) = float(dist);
-        }
+    vector<thread*> threads;
+    for(int i = 0; i < n_threads; i++){
+        threads.push_back(new thread(
+            [this,i,ret_arr,center,radius,resolution] {render_dist_thread<FT>(i,ret_arr,center,radius,resolution);}
+        ));
+    }
+    for(int i = 0; i < n_threads; i++){
+        threads[i]->join();
+        delete threads[i];
     }
     return ret_arr;
+}
+
+template<typename FT>
+void Mandelbrot::render_dist_thread(
+        int id,
+        py::array_t<float> ret,
+        tuple<FT,FT> center,
+        FT radius,
+        tuple<unsigned int, unsigned int> resolution){
+    auto arr = ret.mutable_unchecked<2>();
+    const unsigned int res_x = get<0>(resolution);
+    const unsigned int res_y = get<1>(resolution);
+    const float res = min(res_x,res_y);
+    const FT px_size = radius * 2.0 / FT(res);
+    for(int y = id; y < res_y; y += n_threads){
+        FT im = (FT(y) - FT(res_y) / 2.0) / res; //now in the range of -1,1
+        im *= radius;
+        im += get<1>(center);
+        for(int x = 0; x < res_x; x++){
+            FT re = (FT(x) - FT(res_x) / 2.0) / res; //now in the range of -1,1
+            re *= radius;
+            re += get<0>(center);
+            FT dist = eval_distance<FT>(re,im,max_it,bailout) / px_size;
+            arr(y,x) = float(dist);
+        }
+    }
 }
 
 template<typename FT>
@@ -283,13 +201,13 @@ py::array_t<float> Mandelbrot::_render_orbit(tuple<FT,FT> center, tuple<unsigned
     const unsigned int res_x = get<0>(resolution);
     const unsigned int res_y = get<1>(resolution);
 
-    auto ret_arr = py::array_t<float>({res_y,res_x});
+    auto ret_arr = py::array_t<double>({res_y,res_x});
     auto ret_mu = ret_arr.mutable_unchecked<2>();
 
     auto orbit = eval_orbit<FT>(get<0>(center),get<1>(center),max_it,bailout);
 
-    for(unsigned int x = 0; x < res_x; x++){
-        for(unsigned int y = 0; y < res_y; y++){
+    for(unsigned int y = 0; y < res_y; y++){
+        for(unsigned int x = 0; x < res_x; x++){
             ret_mu(y,x) = 0;
         }
     }
@@ -304,13 +222,5 @@ py::array_t<float> Mandelbrot::_render_orbit(tuple<FT,FT> center, tuple<unsigned
     }
     return ret_arr;
 }
-
-/*
-FT eval_distance(
-        FT re,
-        FT im,
-        const FT max_it,
-        const FT bailout = 2.0){
-}*/
 
 #endif
