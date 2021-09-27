@@ -66,7 +66,7 @@ py::object Mandelbrot::random_radius(py::object center, tuple<unsigned int, unsi
 }
 
 
-py::array_t<float>Mandelbrot::render(
+py::array_t<double>Mandelbrot::render(
         py::object center,
         py::object radius,
         tuple<unsigned int, unsigned int> resolution,
@@ -76,51 +76,51 @@ py::array_t<float>Mandelbrot::render(
         case RENDER_D:
             switch(precision){
                 case PREC_FLOAT:
-                    return _render_distance<float>(
-                        center.cast<tuple<float,float>>(),
+                    return _render_1v<float, eval_distance >(
+                        center.cast<tuple<float,float> >(),
                         radius.cast<float>(),
                         resolution);
                 break;
                 case PREC_DOUBLE:
-                    return _render_distance<double>(
-                        center.cast<tuple<double,double>>(),
+                    return _render_1v<double, eval_distance>(
+                        center.cast<tuple<double,double> >(),
                         radius.cast<double>(),
                         resolution);
                 break;
                 case PREC_LONG_DOUBLE:
-                    return _render_distance<long double>(
-                        center.cast<tuple<long double,long double>>(),
+                    return _render_1v<long double, eval_distance>(
+                        center.cast<tuple<long double,long double> >(),
                         radius.cast<long double>(),
                         resolution);
                 break;
             }
-        break;/*
-        case RENDER_TD:
+        break;
+        case RENDER_T:
             switch(precision){
                 case PREC_FLOAT:
-                    return _render_time_distance<float>(
-                        center.cast<tuple<float,float>>(),
+                    return _render_1v<float, eval_escape_time>(
+                        center.cast<tuple<float,float> >(),
                         radius.cast<float>(),
                         resolution);
                 break;
                 case PREC_DOUBLE:
-                    return _render_time_distance<double>(
-                        center.cast<tuple<double,double>>(),
+                    return _render_1v<double, eval_escape_time>(
+                        center.cast<tuple<double,double> >(),
                         radius.cast<double>(),
                         resolution);
                 break;
                 case PREC_LONG_DOUBLE:
-                    return _render_time_distance<long double>(
-                        center.cast<tuple<long double,long double>>(),
+                    return _render_1v<long double, eval_escape_time>(
+                        center.cast<tuple<long double,long double> >(),
                         radius.cast<long double>(),
                         resolution);
                 break;
             }
-        break;*/
+        break;
     }
 }
 
-py::array_t<float> Mandelbrot::render_orbit(py::object center, tuple<unsigned int, unsigned int> resolution){
+py::array_t<double> Mandelbrot::render_orbit(py::object center, tuple<unsigned int, unsigned int> resolution){
     switch(precision){
         case PREC_FLOAT:
             return _render_orbit<float>(

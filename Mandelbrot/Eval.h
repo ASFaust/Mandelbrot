@@ -5,7 +5,7 @@
 using namespace std;
 
 template<typename FT>
-unsigned long eval_escape_time(
+FT eval_escape_time(
         FT re,
         FT im,
         const FT max_it,

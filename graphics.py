@@ -10,14 +10,14 @@ def coloring(img):
 
     img -= img.min()
     img /= img.max()
-    #img = 1.0 - img
+
+    img = 1.0 - img
+    img = np.sqrt(img)
+    #imax = img[img < 1.0].max()
+    img *= brightness
+
     #imax = img[img < 1.0].max()
     #img[img < 1.0] *= brightness / imax
-    #if (np.random.randint(0, 2) == 1):
-    #    img[img < 1.0] = 1.0 - img[img < 1.0]
-    #    img -= img.min()
-    #    img /= img.max()
-    #    brightness = 1.0 - brightness
 
     canvas = np.ones(shape=(img.shape[0], img.shape[1], 3),dtype = np.float32)
     canvas[:, :, 0] = img
@@ -34,9 +34,10 @@ def coloring(img):
     return img
 
 def circular(img):
-    canvas = np.zeros(shape = (img.shape[0],img.shape[1],3),dtype = np.uint8)
-    cx = int(img.shape[1] / 2.0)
-    cy = int(img.shape[0] / 2.0)
-    circle = cv2.circle(canvas,(cx,cy), cx, (255,255,255), -1, lineType=cv2.LINE_AA).astype(np.float32) / 255.0
-    canvas = circle * img + (1.0 - circle)
+    circle = np.zeros(shape = (img.shape[0]*4,img.shape[1]*4,1),dtype = np.float32)
+    cx = int(max(img.shape[1],img.shape[0]) / 2.0) * 4
+    circle = cv2.circle(circle,(cx,cx), cx, 1.0, -1)
+    circle = cv2.resize(circle,(img.shape[0],img.shape[1]),interpolation = cv2.INTER_AREA)
+    circle = np.expand_dims(circle,-1)
+    canvas = img * circle + (1.0 - circle)
     return canvas
