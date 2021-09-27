@@ -100,6 +100,7 @@ tuple<FT,FT> Mandelbrot::_search(unsigned int search_depth, FT bias, long seed){
     if((bias >= 1.0) or (bias <= 0.0)){
         throw "bias needs to be in (1,0)";
     }
+    /*
     auto [ p1,p2 ] = _init_search<FT>();
     auto [ re1, im1] = p1;
     auto [ re2, im2] = p2;
@@ -121,28 +122,51 @@ tuple<FT,FT> Mandelbrot::_search(unsigned int search_depth, FT bias, long seed){
             }
         }
     }
-    return make_tuple(re2,im2);
+    return make_tuple(re2,im2);*/
+    FT re,im,value;
+    do{
+        re = frand(-3,3);
+        im = frand(-3,3);
+        value = eval_escape_time<FT>(re,im,max_it,bailout);
+    }while(value == max_it);
+    FT re2,im2,value2;
+    FT dist = 1.0;
+    for(int i = 0; i < search_depth; i++){
+        do{
+            re2 = re + frand(-1.0,1.0) * dist * 2.0;
+            im2 = im + frand(-1.0,1.0) * dist * 2.0;
+            value2 = eval_escape_time<FT>(re2,im2,max_it,bailout);
+        }while(value2 == max_it);
+        //if the point is closer, decrease dev and search in the vicinity
+        if(value2 > value){
+            value = value2;
+            re = re2;
+            im = im2;
+            dist = eval_distance<FT>(re,im,max_it,bailout) * bias + dist * (1.0 - bias);
+        }
+    }
+    return make_tuple(re,im);
 }
 
 template<typename FT>
 tuple<tuple<FT,FT>,tuple<FT,FT> > Mandelbrot::_init_search(){
-    FT re1 = frand(-2,2);
-    FT im1 = frand(-2,2);
-    FT re2 = frand(-2,2);
-    FT im2 = frand(-2,2);
+    FT re1 = frand(-3,3);
+    FT im1 = frand(-3,3);
+    FT re2 = frand(-3,3);
+    FT im2 = frand(-3,3);
     unsigned long c1 = eval_escape_time<FT>(re1,im1,max_it,bailout);
     unsigned long c2 = eval_escape_time<FT>(re2,im2,max_it,bailout);
     if(c1 == max_it){
         while(c2 == max_it){
-            re2 = frand(-2,2);
-            im2 = frand(-2,2);
+            re2 = frand(-3,3);
+            im2 = frand(-3,3);
             c2 = eval_escape_time<FT>(re2,im2,max_it,bailout);
         }
         return make_tuple(make_tuple(re1,im1),make_tuple(re2,im2));
     }else{
         while(c2 != max_it){
-            re2 = frand(-2,2);
-            im2 = frand(-2,2);
+            re2 = frand(-3,3);
+            im2 = frand(-3,3);
             c2 = eval_escape_time<FT>(re2,im2,max_it,bailout);
         }
         return make_tuple(make_tuple(re2,im2),make_tuple(re1,im1));
@@ -160,7 +184,7 @@ py::array_t<float> Mandelbrot::_render_distance(
     vector<thread*> threads;
     for(int i = 0; i < n_threads; i++){
         threads.push_back(new thread(
-            [this,i,ret_arr,center,radius,resolution] {render_dist_thread<FT>(i,ret_arr,center,radius,resolution);}
+            [=] {render_dist_thread<FT>(i,ret_arr,center,radius,resolution);}
         ));
     }
     for(int i = 0; i < n_threads; i++){
@@ -180,14 +204,14 @@ void Mandelbrot::render_dist_thread(
     auto arr = ret.mutable_unchecked<2>();
     const unsigned int res_x = get<0>(resolution);
     const unsigned int res_y = get<1>(resolution);
-    const float res = min(res_x,res_y);
+    const double res = min(res_x,res_y);
     const FT px_size = radius * 2.0 / FT(res);
     for(int y = id; y < res_y; y += n_threads){
-        FT im = (FT(y) - FT(res_y) / 2.0) / res; //now in the range of -1,1
+        FT im = (FT(y) - FT(res_y) / 2.0) / res * 2.0; //now in the range of -1,1
         im *= radius;
         im += get<1>(center);
         for(int x = 0; x < res_x; x++){
-            FT re = (FT(x) - FT(res_x) / 2.0) / res; //now in the range of -1,1
+            FT re = (FT(x) - FT(res_x) / 2.0) / res * 2.0; //now in the range of -1,1
             re *= radius;
             re += get<0>(center);
             FT dist = eval_distance<FT>(re,im,max_it,bailout) / px_size;

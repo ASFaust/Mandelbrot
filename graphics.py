@@ -28,6 +28,15 @@ def coloring(img):
     hsv[:, :, 0] = color
     hsv[:, :, 1] = 255 - hsv[:, :, 2]
     hsv[:, :, 1] = (hsv[:, :, 1].astype(np.float32) * saturation).astype(np.uint8)
-    img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR).astype(np.float32)
+    img /= img.max()
     #img = cv2.resize(img, (w, h), interpolation=cv2.INTER_AREA)
     return img
+
+def circular(img):
+    canvas = np.zeros(shape = (img.shape[0],img.shape[1],3),dtype = np.uint8)
+    cx = int(img.shape[1] / 2.0)
+    cy = int(img.shape[0] / 2.0)
+    circle = cv2.circle(canvas,(cx,cy), cx, (255,255,255), -1, lineType=cv2.LINE_AA).astype(np.float32) / 255.0
+    canvas = circle * img + (1.0 - circle)
+    return canvas
