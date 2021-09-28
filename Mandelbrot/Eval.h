@@ -90,40 +90,38 @@ FT eval_smooth_escape_time(
     return ret;
 }
 
-
 template<typename FT>
 tuple<FT,FT> eval_time_distance(
         FT re,
         FT im,
         const FT max_it,
         const FT bailout = 2.0){
-    FT counter = 0;
     FT z_re = re;
     FT z_im = im;
-    FT dz_re = 1.0;
+    FT dz_re = 1.0; //1 or 0????
     FT dz_im = 0.0;
-    FT t1,t2,sqlen;
+    FT t1,t2,t3;
+    t1 = z_re * z_re;
+    t2 = z_im * z_im;
+    FT counter = 0;
     const FT sq_bailout = bailout * bailout;
     do{
-        t1 = z_re * z_re;
-        t2 = z_im * z_im;
         //dz = 2.0 * z * dz + 1.0;
-        dz_re = 2.0 * (z_re * dz_re - z_im * dz_im) + 1.0;
+        t3 = 2.0 * (z_re * dz_re - z_im * dz_im) + 1.0;
         dz_im = 2.0 * (z_im * dz_re + z_re * dz_im);
-
-        //yooo
+        dz_re = t3;
         z_im = 2.0 * z_re * z_im + im;
         z_re = t1 - t2 + re;
         counter++;
+        t1 = z_re * z_re;
+        t2 = z_im * z_im;
     }while(((t1 + t2) < sq_bailout) && (counter < max_it));
     if(counter < max_it){
-        sqlen = z_re * z_re + z_im * z_im;
-        t2 = log(sqlen);
-        counter += 1.0 - log(t2 / log(4.0)) / log(2.0);
-        t1 = sqrt(4.0 * (dz_re * dz_re + dz_im * dz_im));
-        return make_tuple(counter,FT(sqrt(sqlen) * t2 / t1));
+        t1 = sqrt(dz_re * dz_re + dz_im * dz_im);
+        t2 = z_im * z_im + z_re * z_re;
+        return make_tuple<FT,FT>(FT(counter),FT(log(t2) * sqrt(t2) / t1));
     }else{
-        return make_tuple(FT(max_it),FT(0));
+        return make_tuple<FT,FT>(FT(max_it),FT(0));
     }
 }
 

@@ -47,11 +47,17 @@ class Mandelbrot{
         template<typename FT, FT RF(FT,FT,const FT,const FT)>
         py::array_t<double> _render_1v(tuple<FT,FT> center, FT radius, tuple<unsigned int, unsigned int> resolution);
 
+        template<typename FT, tuple<FT,FT> RF(FT,FT,const FT,const FT)>
+        py::array_t<double> _render_2v(tuple<FT,FT> center, FT radius, tuple<unsigned int, unsigned int> resolution);
+
         template<typename FT>
         py::array_t<double> _render_orbit(tuple<FT,FT> center, tuple<unsigned int, unsigned int> resolution);
 
         template<typename FT, FT RF(FT,FT,const FT,const FT)>
         void render_threaded_1v(int id,py::array_t<double> ret,tuple<FT,FT> center,FT radius,tuple<unsigned int, unsigned int> resolution);
+
+        template<typename FT, tuple<FT,FT> RF(FT,FT,const FT,const FT)>
+        void render_threaded_2v(int id,py::array_t<double> ret,tuple<FT,FT> center,FT radius,tuple<unsigned int, unsigned int> resolution);
 
         int precision;
         int n_threads;
@@ -62,7 +68,7 @@ class Mandelbrot{
 template<typename FT>
 FT Mandelbrot::_min_radius(tuple<FT,FT> center,tuple<unsigned int, unsigned int> resolution){
     FT dist = eval_distance<FT>(get<0>(center),get<1>(center),max_it,bailout) * 2.0;
-    return max(FT(exp(FT(-32.0))),dist);
+    return max(FT(exp(FT(-30.0))),dist);
 }
 
 template<typename FT>
@@ -141,6 +147,28 @@ py::array_t<double> Mandelbrot::_render_1v(
     return ret_arr;
 }
 
+template<typename FT, tuple<FT,FT> RF(FT,FT,const FT,const FT)>
+py::array_t<double> Mandelbrot::_render_2v(
+        tuple<FT,FT> center,
+        FT radius,
+        tuple<unsigned int, unsigned int> resolution){
+    const unsigned int res_x = get<0>(resolution);
+    const unsigned int res_y = get<1>(resolution);
+    const unsigned int tv1 = 2;
+    auto ret_arr = py::array_t<double>({res_y,res_x,tv1});
+    vector<thread*> threads;
+    for(int i = 0; i < n_threads; i++){
+        threads.push_back(new thread(
+            [=] {render_threaded_2v<FT,RF>(i,ret_arr,center,radius,resolution);}
+        ));
+    }
+    for(int i = 0; i < n_threads; i++){
+        threads[i]->join();
+        delete threads[i];
+    }
+    return ret_arr;
+}
+
 template<typename FT, FT RF(FT,FT,const FT,const FT)>
 void Mandelbrot::render_threaded_1v(
         int id,
@@ -161,6 +189,33 @@ void Mandelbrot::render_threaded_1v(
             re *= radius;
             re += get<0>(center);
             arr(y,x) = RF(re,im,max_it,bailout);
+        }
+    }
+}
+
+template<typename FT, tuple<FT,FT> RF(FT,FT,const FT,const FT)>
+void Mandelbrot::render_threaded_2v(
+        int id,
+        py::array_t<double> ret,
+        tuple<FT,FT> center,
+        FT radius,
+        tuple<unsigned int, unsigned int> resolution){
+    auto arr = ret.mutable_unchecked<3>();
+    const unsigned int res_x = get<0>(resolution);
+    const unsigned int res_y = get<1>(resolution);
+    const double res = min(res_x,res_y);
+    const FT px_size = (radius * 2.0) / FT(res);
+    for(int y = id; y < res_y; y += n_threads){
+        FT im = (FT(y) - FT(res_y) / 2.0) / res * 2.0; //now in the range of -1,1
+        im *= radius;
+        im += get<1>(center);
+        for(int x = 0; x < res_x; x++){
+            FT re = (FT(x) - FT(res_x) / 2.0) / res * 2.0; //now in the range of -1,1
+            re *= radius;
+            re += get<0>(center);
+            auto val = RF(re,im,max_it,bailout);
+            arr(y,x,0) = get<0>(val) / FT(max_it);
+            arr(y,x,1) = get<1>(val) / px_size;
         }
     }
 }

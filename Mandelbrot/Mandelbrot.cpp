@@ -117,6 +117,28 @@ py::array_t<double>Mandelbrot::render(
                 break;
             }
         break;
+        case RENDER_TD:
+            switch(precision){
+                case PREC_FLOAT:
+                    return _render_2v<float, eval_time_distance>(
+                        center.cast<tuple<float,float> >(),
+                        radius.cast<float>(),
+                        resolution);
+                break;
+                case PREC_DOUBLE:
+                    return _render_2v<double, eval_time_distance>(
+                        center.cast<tuple<double,double> >(),
+                        radius.cast<double>(),
+                        resolution);
+                break;
+                case PREC_LONG_DOUBLE:
+                    return _render_2v<long double, eval_time_distance>(
+                        center.cast<tuple<long double,long double> >(),
+                        radius.cast<long double>(),
+                        resolution);
+                break;
+            }
+        break;
     }
 }
 
