@@ -16,4 +16,4 @@ pip3 install pybind11
 sudo apt install python3-opencv
 pip3 install Mandelbrot/
 ```
-The script `run.py` can then be executed to generate 400 new images, which will be put into the `results` folder.
+The script `run.py` can then be executed to generate 400 new images, which will be put into the `results` folder. Have a look at the script to see how to change resolution and how to run the algorithm for certain seeds.
