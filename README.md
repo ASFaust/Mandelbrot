@@ -5,8 +5,6 @@ The mandelbrot set is a mathematical set of complex numbers with a fractal bound
 
 The mandelbrot set is one of the most popular fractals and has been studied extensively in the field of complex dynamics. For generations, it attracted the attention of mathematicians and artists alike, with its ever changing, psychedelic and swirling patterns.
 
-By creating NFTs based on this set, we honor the legacy of all minds that have occupied themselves with this complex mathematical object.
-
 ## Installation & Running
 From the directory containing this file, execute:
 
