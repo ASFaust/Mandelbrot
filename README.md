@@ -1,4 +1,4 @@
-# Automatic art generation with the Mandelbrot set
+# Mandelbrot renderer
 ![2462881304](./results/2462881304.jpg)
 
 The mandelbrot set is a mathematical set of complex numbers with a fractal boundary, whose shape varies infinitely depending on location and zoom level. Choosing these parameters at random generates a unique and unpredictable work of art. Additionally, choosing a random color scheme creates another dimension of uniqueness for each piece.
